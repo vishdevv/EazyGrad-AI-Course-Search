@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RateLimitError } from "groq-sdk";
+import { RateLimitError } from "@anthropic-ai/sdk";
 import { connectDB } from "@/lib/db";
 import { ProgramModel } from "@/models/Program";
 import { findMatchingPrograms } from "@/lib/matcher";

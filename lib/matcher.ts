@@ -1,4 +1,4 @@
-import Groq from "groq-sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import type { Program, MatchResult, AISearchResponse, AIMatchItem, NoMatchReason } from "@/types";
 
 export interface MatcherResult {
@@ -7,17 +7,17 @@ export interface MatcherResult {
   noMatchMessage?: string;
 }
 
-let _client: Groq | null = null;
+let _client: Anthropic | null = null;
 
-function getClient(): Groq {
+function getClient(): Anthropic {
   if (!_client) {
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error(
-        "GROQ_API_KEY environment variable is not set. Add it to .env.local."
+        "ANTHROPIC_API_KEY environment variable is not set. Add it to .env.local."
       );
     }
-    _client = new Groq({ apiKey });
+    _client = new Anthropic({ apiKey });
   }
   return _client;
 }
@@ -131,17 +131,15 @@ export async function findMatchingPrograms(
 ): Promise<MatcherResult> {
   const systemPrompt = buildSystemPrompt(programs);
 
-  const completion = await getClient().chat.completions.create({
-    model: "llama-3.3-70b-versatile",
+  const message = await getClient().messages.create({
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     temperature: 0.3,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: query },
-    ],
+    system: systemPrompt,
+    messages: [{ role: "user", content: query }],
   });
 
-  const raw = completion.choices[0]?.message?.content ?? "";
+  const raw = message.content[0]?.type === "text" ? message.content[0].text : "";
 
   const aiResponse = parseAIResponse(raw);
   // If the model ignored the JSON instruction and replied conversationally,

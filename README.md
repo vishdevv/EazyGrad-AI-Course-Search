@@ -6,7 +6,7 @@ A homepage prototype for EazyGrad, an EdTech platform that helps students find t
 
 ## Running locally
 
-**Prerequisites:** Node.js 20+, a MongoDB instance (local or Atlas), a Groq API key.
+**Prerequisites:** Node.js 20+, a MongoDB instance (local or Atlas), an Anthropic API key.
 
 ```bash
 # 1. Clone and install
@@ -16,7 +16,7 @@ npm install
 
 # 2. Set environment variables
 cp .env.example .env.local
-# Fill in MONGODB_URI and GROQ_API_KEY in .env.local
+# Fill in MONGODB_URI and ANTHROPIC_API_KEY in .env.local
 
 # 3. Seed the program catalog (run once, or whenever you reset the DB)
 npm run seed
@@ -34,7 +34,7 @@ Open [http://localhost:3000](http://localhost:3000).
 | Variable | Description |
 |---|---|
 | `MONGODB_URI` | MongoDB connection string. Atlas example: `mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/eazygrd` |
-| `GROQ_API_KEY` | Groq API key from [console.groq.com](https://console.groq.com) |
+| `ANTHROPIC_API_KEY` | Anthropic API key from [console.anthropic.com](https://console.anthropic.com) |
 
 Never commit `.env.local`. Only `.env.example` (with empty values) is tracked in git.
 
@@ -60,7 +60,7 @@ components/
 
 lib/
   db.ts                   — Mongoose connection singleton (cached on global to survive Next.js hot-reload).
-  matcher.ts              — Prompt construction, Groq API call, JSON parsing, hallucination guard.
+  matcher.ts              — Prompt construction, Anthropic API call, JSON parsing, hallucination guard.
   filters.ts              — Shared filter predicate used by both the search and explore pages.
 
 models/
