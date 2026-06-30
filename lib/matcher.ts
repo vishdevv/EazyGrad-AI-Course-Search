@@ -1,28 +1,27 @@
-import Anthropic from "@anthropic-ai/sdk";
-import type { Program, MatchResult, AISearchResponse, AIMatchItem } from "@/types";
+import Groq from "groq-sdk";
+import type { Program, MatchResult, AISearchResponse, AIMatchItem, NoMatchReason } from "@/types";
 
-// Client is created lazily on first request so that Next.js build-time
-// module evaluation doesn't throw when env vars aren't present yet.
-let _client: Anthropic | null = null;
+export interface MatcherResult {
+  matches: MatchResult[];
+  noMatchReason?: NoMatchReason;
+  noMatchMessage?: string;
+}
 
-function getClient(): Anthropic {
+let _client: Groq | null = null;
+
+function getClient(): Groq {
   if (!_client) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       throw new Error(
-        "ANTHROPIC_API_KEY environment variable is not set. Add it to .env.local."
+        "GROQ_API_KEY environment variable is not set. Add it to .env.local."
       );
     }
-    _client = new Anthropic({ apiKey });
+    _client = new Groq({ apiKey });
   }
   return _client;
 }
 
-/**
- * Builds the system prompt that instructs the model on its role and
- * the exact JSON schema it must return. Keeping prompt construction
- * in a pure function makes it independently testable.
- */
 function buildSystemPrompt(programs: Program[]): string {
   const catalog = programs.map((p) => ({
     id: p._id,
@@ -49,7 +48,7 @@ INSTRUCTIONS:
 - Return ONLY programs that genuinely match the student's query. Do not pad results with weak matches.
 - Return a minimum of 3 programs if reasonable matches exist; never more than 8.
 - Rank by relevance (most relevant first).
-- For each match, write a single concise sentence (max 20 words) that directly references something the student said and explains the connection to the program.
+- For each match, write 1–2 sentences (20–40 words) of reasoning that: (a) references the student's specific background — their current role, years of experience, or stated goal — by name, and (b) explains exactly why THIS program fits that situation better than a generic alternative. Avoid vague labels like "good for career switch" or "suits IT background". Write like a sharp human counsellor talking directly to the student.
 - relevanceScore must be an integer from 1 to 10 (10 = perfect fit).
 
 RESPONSE FORMAT — return valid JSON only, no markdown fences, no extra text:
@@ -63,18 +62,28 @@ RESPONSE FORMAT — return valid JSON only, no markdown fences, no extra text:
   ]
 }
 
-If no programs match the query at all, return: { "matches": [] }`;
+If no programs match, return:
+{
+  "matches": [],
+  "noMatchReason": "<one of: catalog_gap | off_topic | vague>",
+  "noMatchMessage": "<one sentence for the student explaining why, written directly to them>"
 }
 
-/**
- * Validates and parses the raw JSON string from the model response.
- * Returns null if the response is malformed or missing required fields.
- */
-function parseAIResponse(raw: string): AISearchResponse | null {
-  let parsed: unknown;
+noMatchReason values:
+- "catalog_gap": The student's goal is valid and education-related, but we don't offer programs in that domain (e.g. medical, law, arts, engineering). In noMatchMessage, tell them what domains we DO cover: management, technology, and commerce degrees.
+- "vague": The query is too vague to match anything meaningful — we need more info about their background or goal.
+- "off_topic": The query is a greeting, random question, or completely unrelated to education or careers.
 
+CRITICAL: You MUST respond with valid JSON only — never reply conversationally, never ask for clarification.`;
+}
+
+function parseAIResponse(raw: string): AISearchResponse | null {
+  // Strip markdown code fences if model wraps output despite instructions
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw.trim());
+    parsed = JSON.parse(cleaned);
   } catch {
     return null;
   }
@@ -87,69 +96,78 @@ function parseAIResponse(raw: string): AISearchResponse | null {
     return null;
   }
 
-  const items = (parsed as { matches: unknown[] }).matches;
-
+  const obj = parsed as Record<string, unknown>;
+  const items = (obj.matches as unknown[]);
   const validated: AIMatchItem[] = [];
+
   for (const item of items) {
     if (
       typeof item !== "object" ||
       item === null ||
       typeof (item as Record<string, unknown>).programId !== "string" ||
       typeof (item as Record<string, unknown>).reasoning !== "string" ||
-      typeof (item as Record<string, unknown>).relevanceScore !== "number"
+      typeof (item as Record<string, unknown>).relevanceScore !== "number" ||
+      !Number.isFinite((item as Record<string, unknown>).relevanceScore)
     ) {
-      continue; // skip malformed items, don't fail the whole response
+      continue;
     }
     validated.push(item as AIMatchItem);
   }
 
-  return { matches: validated };
+  const VALID_REASONS = new Set(["catalog_gap", "off_topic", "vague"]);
+  const noMatchReason =
+    typeof obj.noMatchReason === "string" && VALID_REASONS.has(obj.noMatchReason)
+      ? (obj.noMatchReason as "catalog_gap" | "off_topic" | "vague")
+      : undefined;
+  const noMatchMessage =
+    typeof obj.noMatchMessage === "string" ? obj.noMatchMessage : undefined;
+
+  return { matches: validated, noMatchReason, noMatchMessage };
 }
 
-/**
- * Main entry point. Accepts a natural language query and the full
- * program list, returns ranked MatchResult[] with reasoning.
- *
- * Throws on unrecoverable errors (API failure, completely malformed
- * response) so the API route can catch and return a typed error.
- */
 export async function findMatchingPrograms(
   query: string,
   programs: Program[]
-): Promise<MatchResult[]> {
+): Promise<MatcherResult> {
   const systemPrompt = buildSystemPrompt(programs);
 
-  const message = await getClient().messages.create({
-    model: "claude-sonnet-4-5",
+  const completion = await getClient().chat.completions.create({
+    model: "llama-3.3-70b-versatile",
     max_tokens: 1024,
-    system: systemPrompt,
+    temperature: 0.3,
     messages: [
-      {
-        role: "user",
-        content: query,
-      },
+      { role: "system", content: systemPrompt },
+      { role: "user", content: query },
     ],
   });
 
-  const firstBlock = message.content[0];
-  if (!firstBlock || firstBlock.type !== "text") {
-    throw new Error("Unexpected response format from Claude API.");
-  }
+  const raw = completion.choices[0]?.message?.content ?? "";
 
-  const aiResponse = parseAIResponse(firstBlock.text);
+  const aiResponse = parseAIResponse(raw);
+  // If the model ignored the JSON instruction and replied conversationally,
+  // treat it as off_topic with a generic message.
   if (!aiResponse) {
-    throw new Error(
-      `Could not parse Claude response as valid JSON. Raw: ${firstBlock.text.slice(0, 200)}`
-    );
+    return {
+      matches: [],
+      noMatchReason: "off_topic",
+      noMatchMessage: "This doesn't look like an education query. Try describing your background or the kind of degree you're looking for.",
+    };
   }
 
-  // Build a lookup map to avoid O(n²) matching
+  if (aiResponse.matches.length === 0) {
+    return {
+      matches: [],
+      noMatchReason: aiResponse.noMatchReason,
+      noMatchMessage: aiResponse.noMatchMessage,
+    };
+  }
+
   const programMap = new Map(programs.map((p) => [p._id, p]));
 
   const results: MatchResult[] = [];
   for (const match of aiResponse.matches) {
     const program = programMap.get(match.programId);
-    if (!program) continue; // model hallucinated an id — skip safely
+    if (!program) continue;
 
     results.push({
       program,
@@ -158,5 +176,5 @@ export async function findMatchingPrograms(
     });
   }
 
-  return results;
+  return { matches: results };
 }

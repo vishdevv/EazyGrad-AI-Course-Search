@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import HeroSearch from "@/components/HeroSearch";
 import ProgramCard from "@/components/ProgramCard";
 import FilterSidebar from "@/components/FilterSidebar";
@@ -10,7 +12,8 @@ import {
   EmptySearchState,
   EmptyFilterState,
 } from "@/components/SearchStates";
-import type { SearchResponse, MatchResult, FilterState } from "@/types";
+import { filterMatches } from "@/lib/filters";
+import type { SearchResponse, FilterState } from "@/types";
 
 type PageState =
   | { stage: "idle" }
@@ -25,44 +28,14 @@ const DEFAULT_FILTERS: FilterState = {
   providers: [],
 };
 
-function applyFilters(matches: MatchResult[], filters: FilterState): MatchResult[] {
-  return matches.filter(({ program }) => {
-    if (
-      filters.degreeTypes.length > 0 &&
-      !filters.degreeTypes.includes(program.degreeType)
-    ) {
-      return false;
-    }
-
-    if (filters.feeRange) {
-      const { min, max } = filters.feeRange;
-      // Include if fee range overlaps — fee band isn't strictly under/over
-      if (program.feeMax < min || program.feeMin > max) return false;
-    }
-
-    if (filters.durationRange) {
-      const { minMonths, maxMonths } = filters.durationRange;
-      if (program.durationMonths < minMonths || program.durationMonths > maxMonths) {
-        return false;
-      }
-    }
-
-    if (
-      filters.providers.length > 0 &&
-      !filters.providers.includes(program.provider)
-    ) {
-      return false;
-    }
-
-    return true;
-  });
-}
-
 export default function HomePage() {
   const [pageState, setPageState] = useState<PageState>({ stage: "idle" });
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  // hasSearched: flips true on first successful result — triggers compact layout
+  const [hasSearched, setHasSearched] = useState(false);
 
   const handleResults = useCallback((data: SearchResponse) => {
+    setHasSearched(true);
     setFilters(DEFAULT_FILTERS);
     setPageState({ stage: "results", data });
   }, []);
@@ -76,6 +49,7 @@ export default function HomePage() {
   }, []);
 
   const handleRetry = useCallback(() => {
+    setHasSearched(false);
     setPageState({ stage: "idle" });
   }, []);
 
@@ -84,77 +58,112 @@ export default function HomePage() {
   const allMatches =
     pageState.stage === "results" ? pageState.data.matches : [];
 
-  const visibleMatches = applyFilters(allMatches, filters);
+  const visibleMatches = filterMatches(allMatches, filters);
 
-  return (
-    <main className="flex flex-1 flex-col min-h-screen">
-      {/* Hero — always visible, shrinks once results are shown */}
-      <div
-        className={
-          pageState.stage === "idle" || pageState.stage === "loading"
-            ? "flex flex-1 flex-col justify-center"
-            : ""
-        }
-      >
-        <HeroSearch
-          onResults={handleResults}
-          onError={handleError}
-          onLoadingChange={handleLoadingChange}
-          isLoading={isLoading}
-        />
-      </div>
+  const searchProps = {
+    onResults: handleResults,
+    onError: handleError,
+    onLoadingChange: handleLoadingChange,
+    isLoading,
+  };
 
-      {/* Results area */}
-      {pageState.stage === "loading" && <LoadingState />}
+  /* ── Compact layout — shown after first successful search ── */
+  if (hasSearched) {
+    return (
+      <div className="min-h-screen flex flex-col bg-bg">
+        {/* Thin header: logo + compact search */}
+        <header className="shrink-0 border-b border-border bg-surface sticky top-0 z-10">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 sm:gap-5">
+            <Image
+              src="/eazygrad-logo.png"
+              alt="EazyGrad"
+              width={110}
+              height={23}
+              className="shrink-0 h-5 sm:h-6 w-auto"
+            />
+            <div className="flex-1 min-w-0">
+              <HeroSearch compact {...searchProps} />
+            </div>
+            <Link
+              href="/explore"
+              className="shrink-0 text-sm text-teal font-semibold hover:underline underline-offset-2 whitespace-nowrap hidden sm:block"
+            >
+              Browse all
+            </Link>
+          </div>
+        </header>
 
-      {pageState.stage === "error" && (
-        <div className="max-w-2xl mx-auto w-full px-4">
-          <ErrorState message={pageState.message} onRetry={handleRetry} />
-        </div>
-      )}
+        <main className="flex-1">
+          {pageState.stage === "loading" && <LoadingState />}
 
-      {pageState.stage === "results" && (
-        <section className="flex-1 border-t border-gray-100">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-            {allMatches.length === 0 ? (
-              <EmptySearchState />
-            ) : (
-              <div className="flex flex-col lg:flex-row gap-8">
-                {/* Sidebar */}
-                <div className="lg:w-56 xl:w-64 shrink-0">
-                  <div className="lg:sticky lg:top-8">
-                    <FilterSidebar
-                      filters={filters}
-                      onChange={setFilters}
-                      allMatches={allMatches}
-                      visibleCount={visibleMatches.length}
-                    />
+          {pageState.stage === "error" && (
+            <div className="max-w-5xl mx-auto px-6 sm:px-8">
+              <ErrorState message={pageState.message} onRetry={handleRetry} />
+            </div>
+          )}
+
+          {pageState.stage === "results" && (
+            <section className="max-w-5xl mx-auto px-6 sm:px-8 py-8">
+              {allMatches.length === 0 ? (
+                <EmptySearchState
+                  reason={pageState.stage === "results" ? pageState.data.noMatchReason : undefined}
+                  message={pageState.stage === "results" ? pageState.data.noMatchMessage : undefined}
+                />
+              ) : (
+                <div className="flex flex-col lg:flex-row gap-10">
+                  {/* Sidebar */}
+                  <div className="shrink-0 lg:w-72 lg:border-r lg:border-border lg:pr-8">
+                    <div className="lg:sticky lg:top-8">
+                      <FilterSidebar
+                        filters={filters}
+                        onChange={setFilters}
+                        allMatches={allMatches}
+                        visibleCount={visibleMatches.length}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Cards */}
+                  <div className="flex-1 min-w-0">
+                    {visibleMatches.length === 0 ? (
+                      <EmptyFilterState
+                        onClear={() => setFilters(DEFAULT_FILTERS)}
+                      />
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {visibleMatches.map((match, i) => (
+                          <ProgramCard
+                            key={match.program._id}
+                            match={match}
+                            rank={i + 1}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
+              )}
+            </section>
+          )}
+        </main>
+      </div>
+    );
+  }
 
-                {/* Cards grid */}
-                <div className="flex-1 min-w-0">
-                  {visibleMatches.length === 0 ? (
-                    <EmptyFilterState
-                      onClear={() => setFilters(DEFAULT_FILTERS)}
-                    />
-                  ) : (
-                    <div className="flex flex-col gap-4">
-                      {visibleMatches.map((match, i) => (
-                        <ProgramCard
-                          key={match.program._id}
-                          match={match}
-                          rank={i + 1}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+  /* ── Full hero layout — shown before first search ── */
+  return (
+    <div className="min-h-screen flex flex-col bg-bg">
+      <main className="flex flex-1 flex-col justify-center">
+        <HeroSearch {...searchProps} />
+
+        {pageState.stage === "loading" && <LoadingState />}
+
+        {pageState.stage === "error" && (
+          <div className="max-w-xl mx-auto w-full px-4 pb-16">
+            <ErrorState message={pageState.message} onRetry={handleRetry} />
           </div>
-        </section>
-      )}
-    </main>
+        )}
+      </main>
+    </div>
   );
 }

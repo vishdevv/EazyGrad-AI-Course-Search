@@ -40,9 +40,13 @@ export interface MatchResult {
   relevanceScore: number; // 1–10, used for ordering display
 }
 
+export type NoMatchReason = "catalog_gap" | "off_topic" | "vague";
+
 export interface SearchResponse {
   matches: MatchResult[];
   totalMatches: number;
+  noMatchReason?: NoMatchReason;
+  noMatchMessage?: string;
 }
 
 export interface SearchErrorResponse {
@@ -96,4 +100,6 @@ export interface AIMatchItem {
 
 export interface AISearchResponse {
   matches: AIMatchItem[];
+  noMatchReason?: NoMatchReason;
+  noMatchMessage?: string;
 }

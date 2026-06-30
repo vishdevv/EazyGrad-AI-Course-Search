@@ -1,26 +1,82 @@
 @import "tailwindcss";
 
 @theme {
-  /* Brand palette — slate-based neutrals, nothing gimmicky */
-  --color-brand-50: oklch(0.984 0.003 247.9);
-  --color-brand-100: oklch(0.968 0.007 247.9);
-  --color-brand-200: oklch(0.929 0.013 255.5);
-  --color-brand-500: oklch(0.623 0.214 259.8);
-  --color-brand-600: oklch(0.546 0.245 262.9);
-  --color-brand-700: oklch(0.488 0.243 264.4);
-  --color-brand-900: oklch(0.279 0.141 264.1);
+  --color-teal:    #1C4D45;
+  --color-lime:    #C5E233;
+  --color-bg:      #F0F0EA;
+  --color-surface: #FFFFFF;
+  --color-ink:     #111827;
+  --color-muted:   #6B7280;
+  --color-border:  #E5E7EB;
 
-  /* Typography */
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-league),   ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    var(--font-poppins),  ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-dm-mono),  ui-monospace,  "Courier New", monospace;
 }
 
-/* Base reset that works with Tailwind 4 */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+/* ── Explicit color utilities ─────────────────────────────────────────────── */
+
+@utility bg-bg      { background-color: #F0F0EA; }
+@utility bg-surface { background-color: #FFFFFF;  }
+@utility bg-teal    { background-color: #1C4D45;  }
+@utility bg-lime    { background-color: #C5E233;  }
+
+@utility text-teal  { color: #1C4D45; }
+@utility text-lime  { color: #C5E233; }
+@utility text-ink   { color: #111827; }
+@utility text-muted { color: #6B7280; }
+
+@utility border-teal   { border-color: #1C4D45; }
+@utility border-lime   { border-color: #C5E233; }
+@utility border-border { border-color: #E5E7EB; }
+
+@utility accent-teal { accent-color: #1C4D45; }
+@utility ring-teal   { --tw-ring-color: #1C4D45; }
+
+@utility font-display { font-family: var(--font-display); }
+@utility font-sans    { font-family: var(--font-sans);    }
+@utility font-mono    { font-family: var(--font-mono);    }
+
+/* ── Animations ─────────────────────────────────────────────────────────── */
+
+@keyframes card-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
 }
+
+@keyframes phrase-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50%       { opacity: 1;   transform: scale(1);   }
+}
+
+@utility animate-card-enter {
+  animation: card-enter 220ms ease-out both;
+}
+
+@utility animate-phrase-in {
+  animation: phrase-in 280ms ease-out both;
+}
+
+@utility animate-breathe {
+  animation: breathe 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-enter,
+  .animate-phrase-in,
+  .animate-breathe {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
 
 html {
   -webkit-font-smoothing: antialiased;
@@ -28,7 +84,7 @@ html {
 }
 
 body {
-  background-color: #fafafa;
-  color: #111827;
+  background-color: #F0F0EA;
+  color: #414042;
   font-family: var(--font-sans);
 }

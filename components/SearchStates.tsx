@@ -1,27 +1,56 @@
-// Loading, error, and empty state UI components for the search results area.
+"use client";
+
+import { useState, useEffect } from "react";
+
+/* ── Loading ──────────────────────────────────────────────────────────────── */
+
+const LOADING_PHRASES = [
+  "Reading your background…",
+  "Scanning the catalog…",
+  "Weighing program fit…",
+  "Ranking matches…",
+];
 
 export function LoadingState() {
+  const [phraseIndex, setPhraseIndex] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(
+      () => setPhraseIndex((i) => (i + 1) % LOADING_PHRASES.length),
+      1400
+    );
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div
-      className="flex flex-col items-center justify-center py-20 gap-4"
+      className="flex flex-col items-center justify-center py-24 gap-5"
       aria-live="polite"
       aria-busy="true"
     >
-      <div className="flex gap-1.5">
+      {/* Breathing dots in teal */}
+      <div className="flex items-center gap-1.5" aria-hidden="true">
         {[0, 1, 2].map((i) => (
-          <div
+          <span
             key={i}
-            className="h-2.5 w-2.5 rounded-full bg-blue-500 animate-bounce"
-            style={{ animationDelay: `${i * 150}ms` }}
+            className="block h-2 w-2 rounded-full bg-teal animate-breathe"
+            style={{ animationDelay: `${i * 0.3}s` }}
           />
         ))}
       </div>
-      <p className="text-sm text-gray-500">
-        Finding the best programs for you…
+
+      {/* Cycling phrase */}
+      <p
+        key={phraseIndex}
+        className="animate-phrase-in font-display text-base font-semibold text-ink"
+      >
+        {LOADING_PHRASES[phraseIndex]}
       </p>
     </div>
   );
 }
+
+/* ── Error ────────────────────────────────────────────────────────────────── */
 
 interface ErrorStateProps {
   message: string;
@@ -31,21 +60,16 @@ interface ErrorStateProps {
 export function ErrorState({ message, onRetry }: ErrorStateProps) {
   return (
     <div
-      className="flex flex-col items-center justify-center py-20 gap-4 text-center"
+      className="flex flex-col items-start gap-3 py-12"
       role="alert"
       aria-live="assertive"
     >
-      <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-50">
-        <ErrorIcon />
-      </div>
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-gray-900">Something went wrong</p>
-        <p className="text-sm text-gray-500 max-w-sm">{message}</p>
-      </div>
+      <p className="text-sm font-bold text-ink">Something went wrong.</p>
+      <p className="text-sm text-muted max-w-sm leading-relaxed">{message}</p>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="text-sm text-blue-600 hover:text-blue-700 underline underline-offset-2"
+          className="mt-1 h-8 px-4 rounded-lg bg-lime text-ink text-sm font-bold hover:opacity-90 transition-opacity"
         >
           Try again
         </button>
@@ -54,76 +78,127 @@ export function ErrorState({ message, onRetry }: ErrorStateProps) {
   );
 }
 
-export function EmptySearchState() {
+/* ── Empty — no AI matches ────────────────────────────────────────────────── */
+
+interface EmptySearchStateProps {
+  reason?: string;
+  message?: string;
+}
+
+const CATALOG_EXAMPLES = [
+  "MBA in Finance — 3 years in banking, want a management role.",
+  "MCA online — working professional with a BCA degree.",
+  "BCom graduate looking to switch into tech management.",
+];
+
+const VAGUE_EXAMPLES = [
+  "I have a BCom degree and 3 years in accounting, want to move into finance management.",
+  "Working professional, 5 years in IT support, looking for an online MCA or MBA in tech.",
+  "Fresh 12th pass, interested in business and entrepreneurship.",
+];
+
+function ExampleList({ examples }: { examples: string[] }) {
+  return (
+    <ul className="flex flex-col gap-2 w-full">
+      {examples.map((ex) => (
+        <li
+          key={ex}
+          className="text-[13px] text-muted bg-surface border border-border rounded-xl px-4 py-3 leading-relaxed"
+        >
+          &ldquo;{ex}&rdquo;
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function EmptySearchState({ reason, message }: EmptySearchStateProps) {
+  if (reason === "catalog_gap") {
+    return (
+      <div
+        className="flex flex-col items-start gap-5 py-10 max-w-lg"
+        aria-live="polite"
+      >
+        {/* Callout */}
+        <div className="w-full rounded-2xl bg-[#F5FBE8] border border-[#DFF0BC] px-5 py-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-teal mb-2">
+            Not in our catalog
+          </p>
+          <p className="text-[14px] text-ink leading-relaxed">
+            {message ?? "We don't currently offer programs in that area."}
+          </p>
+        </div>
+
+        {/* Redirect */}
+        <div className="w-full">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted mb-3">
+            What we do offer
+          </p>
+          <ExampleList examples={CATALOG_EXAMPLES} />
+        </div>
+      </div>
+    );
+  }
+
+  if (reason === "off_topic") {
+    return (
+      <div
+        className="flex flex-col items-start gap-5 py-10 max-w-lg"
+        aria-live="polite"
+      >
+        <div className="w-full rounded-2xl border border-border bg-surface px-5 py-4">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-teal mb-2">
+            Not an education query
+          </p>
+          <p className="text-[14px] text-ink leading-relaxed">
+            {message ?? "This doesn't look like an education or career query."}
+          </p>
+        </div>
+        <p className="text-[13px] text-muted leading-relaxed">
+          Describe your educational background and what career you&apos;re aiming for — we&apos;ll find the right program for you.
+        </p>
+      </div>
+    );
+  }
+
+  // "vague" or unknown
   return (
     <div
-      className="flex flex-col items-center justify-center py-20 gap-3 text-center"
+      className="flex flex-col items-start gap-5 py-10 max-w-lg"
       aria-live="polite"
     >
-      <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gray-100">
-        <EmptyIcon />
+      <div className="w-full rounded-2xl border border-border bg-surface px-5 py-4">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-teal mb-2">
+          Need a bit more detail
+        </p>
+        <p className="text-[14px] text-ink leading-relaxed">
+          {message ?? "The more you tell us about your background and goals, the better we can match you."}
+        </p>
       </div>
-      <p className="text-sm font-medium text-gray-900">No programs found</p>
-      <p className="text-sm text-gray-500 max-w-sm">
-        Our AI couldn&apos;t find a strong match for that query. Try describing your
-        educational background, career goal, or the industry you want to work in.
-      </p>
+      <div className="w-full">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-muted mb-3">
+          Try something like
+        </p>
+        <ExampleList examples={VAGUE_EXAMPLES} />
+      </div>
     </div>
   );
 }
 
+/* ── Empty — filters over-narrowed ───────────────────────────────────────── */
+
 export function EmptyFilterState({ onClear }: { onClear: () => void }) {
   return (
-    <div
-      className="flex flex-col items-center justify-center py-16 gap-3 text-center"
-      aria-live="polite"
-    >
-      <p className="text-sm font-medium text-gray-900">
-        No results match your filters
-      </p>
-      <p className="text-sm text-gray-500">
-        Try adjusting or clearing the active filters.
+    <div className="flex flex-col items-start gap-3 py-12" aria-live="polite">
+      <p className="text-sm font-bold text-ink">
+        Your filters narrowed results to zero.
       </p>
       <button
         onClick={onClear}
-        className="mt-1 text-sm text-blue-600 hover:text-blue-700 underline underline-offset-2"
+        className="h-8 px-4 rounded-lg bg-lime text-ink text-sm font-bold hover:opacity-90 transition-opacity"
       >
         Clear filters
       </button>
     </div>
-  );
-}
-
-function ErrorIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-red-500"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        fillRule="evenodd"
-        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"
-        clipRule="evenodd"
-      />
-    </svg>
-  );
-}
-
-function EmptyIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-gray-400"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        fillRule="evenodd"
-        d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-        clipRule="evenodd"
-      />
-    </svg>
   );
 }

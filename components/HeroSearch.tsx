@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import React, { useState, useRef } from "react";
 import type { SearchResponse, SearchErrorResponse } from "@/types";
 
 interface HeroSearchProps {
@@ -8,54 +10,38 @@ interface HeroSearchProps {
   onError: (message: string) => void;
   onLoadingChange: (loading: boolean) => void;
   isLoading: boolean;
+  compact?: boolean;
 }
 
-const PLACEHOLDER_CYCLE = [
-  "I'm a working professional with a commerce background, want to grow into management…",
-  "Fresh graduate, interested in AI and machine learning, no CS degree…",
-  "10 years in IT support, want a formal degree that opens senior roles…",
-  "BCom done, want to specialise in taxation and accounting…",
-  "Engineer switching careers into product management or business analytics…",
-];
+const PLACEHOLDER =
+  "e.g. Working in commerce for 4 years, aiming for a management role without leaving my job.";
 
 export default function HeroSearch({
   onResults,
   onError,
   onLoadingChange,
   isLoading,
+  compact = false,
 }: HeroSearchProps) {
   const [query, setQuery] = useState("");
-  // Start at 0 (matches SSR), randomise after mount to avoid hydration mismatch
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    setPlaceholderIndex(Math.floor(Math.random() * PLACEHOLDER_CYCLE.length));
-  }, []);
 
   async function handleSubmit(e?: { preventDefault(): void }) {
     e?.preventDefault();
-
     const trimmed = query.trim();
     if (trimmed.length < 5 || isLoading) return;
-
     onLoadingChange(true);
-
     try {
       const res = await fetch("/api/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: trimmed }),
       });
-
       const data: SearchResponse | SearchErrorResponse = await res.json();
-
       if (!res.ok) {
-        const err = data as SearchErrorResponse;
-        onError(err.error ?? "Something went wrong. Please try again.");
+        onError((data as SearchErrorResponse).error ?? "Something went wrong.");
         return;
       }
-
       onResults(data as SearchResponse);
     } catch {
       onError("Network error. Check your connection and try again.");
@@ -78,118 +64,126 @@ export default function HeroSearch({
     el.style.height = `${el.scrollHeight}px`;
   }
 
-  return (
-    <section className="flex flex-col items-center justify-center px-4 py-20 sm:py-32 text-center">
-      {/* Wordmark */}
-      <div className="mb-10 flex flex-col items-center gap-3">
-        <span className="text-xs font-semibold tracking-[0.2em] text-gray-400 uppercase">
-          EazyGrad
-        </span>
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-gray-900 leading-tight max-w-2xl">
-          Find your degree.{" "}
-          <span className="text-blue-600">Describe your goals.</span>
-        </h1>
-        <p className="mt-2 text-lg text-gray-500 max-w-xl">
-          Tell us about your background and where you want to go — our AI
-          matches you to the right online program.
-        </p>
-      </div>
+  const canSubmit = query.trim().length >= 5 && !isLoading;
 
-      {/* Search form */}
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-2xl"
-        aria-label="Program search"
-      >
-        <div className="relative rounded-xl border border-gray-200 bg-white shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition-shadow">
-          <textarea
-            ref={textareaRef}
+  /* ── Compact strip — used in the results header ── */
+  if (compact) {
+    return (
+      <form onSubmit={handleSubmit} aria-label="Refine your search">
+        <div className="flex items-center gap-2 sm:gap-3 rounded-lg border border-border bg-surface px-3 sm:px-4 py-2.5 focus-within:border-teal focus-within:shadow-[0_0_0_3px_rgba(28,77,69,0.10)] transition-all duration-200">
+          <input
+            type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onInput={handleInput}
-            placeholder={PLACEHOLDER_CYCLE[placeholderIndex]}
-            rows={3}
+            placeholder="Search again…"
+            aria-label="Search again"
             disabled={isLoading}
-            aria-label="Describe your background and goals"
-            className="w-full resize-none rounded-xl bg-transparent px-5 pt-4 pb-14 text-base text-gray-900 placeholder-gray-400 focus:outline-none disabled:opacity-60"
+            className="flex-1 min-w-0 bg-transparent text-sm text-ink placeholder:text-muted focus:outline-none disabled:opacity-60"
           />
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            aria-label="Search"
+            className="shrink-0 h-7 px-3 rounded-md bg-lime text-ink text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+          >
+            {isLoading ? "…" : "Find →"}
+          </button>
+        </div>
+      </form>
+    );
+  }
 
-          {/* Submit bar */}
-          <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <span className="text-xs text-gray-400">
-              {query.trim().length > 0
-                ? `${query.trim().length} chars · Enter to search`
-                : "Shift+Enter for new line · Enter to search"}
-            </span>
-            <button
-              type="submit"
-              disabled={query.trim().length < 5 || isLoading}
-              aria-label="Search for matching programs"
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <Spinner />
-                  Matching…
-                </>
-              ) : (
-                <>
-                  <SearchIcon />
-                  Find programs
-                </>
-              )}
-            </button>
-          </div>
+  /* ── Full hero ── */
+  return (
+    <section
+      className="flex flex-col items-center justify-center px-4 py-16 sm:py-24"
+      aria-label="Program search"
+    >
+      <div className="w-full max-w-xl">
+        {/* Logo */}
+        <div className="flex justify-center mb-10">
+          <Image
+            src="/eazygrad-logo.png"
+            alt="EazyGrad"
+            width={140}
+            height={29}
+            priority
+            className="h-7 w-auto"
+          />
         </div>
 
-        <p className="mt-3 text-xs text-gray-400">
-          Press Enter to search. Try describing your education, work background,
-          or the role you&apos;re aiming for.
+        {/* Headline + brushstroke */}
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl sm:text-[36px] font-extrabold text-ink leading-tight tracking-tight">
+            Degrees matched to
+            <br />
+            your career goals.
+          </h1>
+
+          {/* EazyGrad's actual brushstroke — sits flush under the headline */}
+          <div className="flex justify-center mt-2 mb-4">
+            <Image
+              src="/brushstroke.webp"
+              alt=""
+              aria-hidden="true"
+              width={320}
+              height={26}
+              className="w-64 sm:w-80 h-auto"
+            />
+          </div>
+
+          <p className="text-base text-muted leading-relaxed">
+            Tell us where you&apos;re headed — we&apos;ll find programs worth
+            your time and money.
+          </p>
+        </div>
+
+        {/* Search input */}
+        <form onSubmit={handleSubmit}>
+          <div className="relative rounded-xl border border-border bg-surface focus-within:border-teal focus-within:shadow-[0_0_0_3px_rgba(28,77,69,0.10)] transition-all duration-200 shadow-sm">
+            <textarea
+              ref={textareaRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onInput={handleInput}
+              placeholder={PLACEHOLDER}
+              rows={4}
+              disabled={isLoading}
+              aria-label="Describe your background and goals"
+              className="w-full resize-none rounded-xl bg-transparent px-5 pt-5 pb-16 text-[15px] leading-relaxed text-ink placeholder:text-muted focus:outline-none disabled:opacity-60"
+            />
+            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3.5">
+              <span className="font-mono text-[11px] text-muted">
+                {query.trim().length > 0
+                  ? `${query.trim().length} chars · Shift+Enter for new line`
+                  : "Shift+Enter for new line · Enter to search"}
+              </span>
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className="h-8 px-4 rounded-lg bg-lime text-ink text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+              >
+                {isLoading ? "Matching…" : "Find programs →"}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <p className="mt-3 text-center font-mono text-[11px] text-muted">
+          Describe your education, experience, or the role you&apos;re aiming for.
         </p>
-      </form>
+
+        <p className="mt-4 text-center text-sm text-muted">
+          Not sure what to search?{" "}
+          <Link
+            href="/explore"
+            className="text-teal font-semibold hover:underline underline-offset-2"
+          >
+            Browse all programs →
+          </Link>
+        </p>
+      </div>
     </section>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg
-      className="h-4 w-4 animate-spin"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-    >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-      />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      className="h-4 w-4"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        fillRule="evenodd"
-        d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-        clipRule="evenodd"
-      />
-    </svg>
   );
 }

@@ -14,6 +14,7 @@ interface FilterSidebarProps {
   onChange: (next: FilterState) => void;
   allMatches: MatchResult[];
   visibleCount: number;
+  countLabel?: string;
 }
 
 export default function FilterSidebar({
@@ -21,8 +22,15 @@ export default function FilterSidebar({
   onChange,
   allMatches,
   visibleCount,
+  countLabel = "matches",
 }: FilterSidebarProps) {
-  const providers = [...new Set(allMatches.map((m) => m.program.provider))].sort();
+  const providers = [
+    ...new Set(allMatches.map((m) => m.program.provider)),
+  ].sort();
+
+  const activeDegreeTypes = [
+    ...new Set(allMatches.map((m) => m.program.degreeType)),
+  ] as DegreeType[];
 
   function toggleDegreeType(dt: DegreeType) {
     const next = filters.degreeTypes.includes(dt)
@@ -38,18 +46,18 @@ export default function FilterSidebar({
     onChange({ ...filters, providers: next });
   }
 
-  function setFeeRange(range: FeeRangeOption | null) {
+  function setFeeRange(range: FeeRangeOption) {
     onChange({
       ...filters,
-      feeRange: filters.feeRange?.label === range?.label ? null : range,
+      feeRange: filters.feeRange?.label === range.label ? null : range,
     });
   }
 
-  function setDurationRange(range: DurationRangeOption | null) {
+  function setDurationRange(range: DurationRangeOption) {
     onChange({
       ...filters,
       durationRange:
-        filters.durationRange?.label === range?.label ? null : range,
+        filters.durationRange?.label === range.label ? null : range,
     });
   }
 
@@ -63,88 +71,87 @@ export default function FilterSidebar({
     filters.durationRange !== null ||
     filters.providers.length > 0;
 
-  // Only show degree types that appear in the current result set
-  const activeDegreeTypes = [
-    ...new Set(allMatches.map((m) => m.program.degreeType)),
-  ] as DegreeType[];
-
   return (
-    <aside className="flex flex-col gap-6" aria-label="Filter results">
-      {/* Result count + clear */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-gray-700">
-          Showing{" "}
-          <span className="text-blue-600 font-semibold">{visibleCount}</span>
-          {" of "}
-          <span className="font-semibold">{allMatches.length}</span> matches
+    <aside aria-label="Filter results">
+      {/* Match count card */}
+      <div className="bg-surface rounded-2xl border border-border px-4 py-4 mb-4">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-teal mb-1">
+          Results
         </p>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-3xl font-extrabold text-teal leading-none">
+            {visibleCount}
+          </span>
+          <span className="text-sm text-muted">/ {allMatches.length} {countLabel}</span>
+        </div>
         {hasActiveFilters && (
           <button
             onClick={clearAll}
-            className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2 transition-colors"
+            className="mt-3 w-full h-7 rounded-lg bg-[#F5FBE8] border border-[#DFF0BC] text-[11px] font-semibold text-teal hover:bg-[#DFF0BC] transition-colors"
           >
-            Clear all
+            Clear all filters
           </button>
         )}
       </div>
 
-      {/* Degree type */}
-      <FilterSection title="Degree type">
-        <div className="flex flex-col gap-1.5">
-          {DEGREE_TYPES.filter((dt) => activeDegreeTypes.includes(dt)).map((dt) => (
-            <CheckboxItem
-              key={dt}
-              label={dt}
-              checked={filters.degreeTypes.includes(dt)}
-              onChange={() => toggleDegreeType(dt)}
-            />
-          ))}
-        </div>
-      </FilterSection>
+      {/* Filter sections */}
+      <div className="bg-surface rounded-2xl border border-border overflow-hidden">
+        {activeDegreeTypes.length > 0 && (
+          <FilterSection title="Degree">
+            {DEGREE_TYPES.filter((dt) => activeDegreeTypes.includes(dt)).map((dt) => (
+              <CheckItem
+                key={dt}
+                type="checkbox"
+                name="degree-type"
+                label={dt}
+                checked={filters.degreeTypes.includes(dt)}
+                onChange={() => toggleDegreeType(dt)}
+              />
+            ))}
+          </FilterSection>
+        )}
 
-      {/* Fee range */}
-      <FilterSection title="Fee range">
-        <div className="flex flex-col gap-1.5">
+        <FilterSection title="Fee range">
           {FEE_RANGES.map((range) => (
-            <RadioItem
+            <CheckItem
               key={range.label}
+              type="radio"
+              name="fee-range"
               label={range.label}
               checked={filters.feeRange?.label === range.label}
               onChange={() => setFeeRange(range)}
             />
           ))}
-        </div>
-      </FilterSection>
+        </FilterSection>
 
-      {/* Duration */}
-      <FilterSection title="Duration">
-        <div className="flex flex-col gap-1.5">
+        <FilterSection title="Duration">
           {DURATION_RANGES.map((range) => (
-            <RadioItem
+            <CheckItem
               key={range.label}
+              type="radio"
+              name="duration-range"
               label={range.label}
               checked={filters.durationRange?.label === range.label}
               onChange={() => setDurationRange(range)}
             />
           ))}
-        </div>
-      </FilterSection>
+        </FilterSection>
 
-      {/* Provider */}
-      {providers.length > 1 && (
-        <FilterSection title="Provider">
-          <div className="flex flex-col gap-1.5">
-            {providers.map((provider) => (
-              <CheckboxItem
-                key={provider}
-                label={provider}
-                checked={filters.providers.includes(provider)}
-                onChange={() => toggleProvider(provider)}
+        {providers.length > 1 && (
+          <FilterSection title="Provider" last>
+            {providers.map((p) => (
+              <CheckItem
+                key={p}
+                type="checkbox"
+                name="provider"
+                label={p}
+                checked={filters.providers.includes(p)}
+                onChange={() => toggleProvider(p)}
               />
             ))}
-          </div>
-        </FilterSection>
-      )}
+          </FilterSection>
+        )}
+      </div>
     </aside>
   );
 }
@@ -152,62 +159,50 @@ export default function FilterSidebar({
 function FilterSection({
   title,
   children,
+  last = false,
 }: {
   title: string;
   children: React.ReactNode;
+  last?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+    <div className={`px-4 py-4 ${last ? "" : "border-b border-border"}`}>
+      <h3 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-teal mb-3">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-lime" />
         {title}
       </h3>
-      {children}
+      <div className="flex flex-col gap-1.5">{children}</div>
     </div>
   );
 }
 
-function CheckboxItem({
-  label,
-  checked,
-  onChange,
-}: {
+interface CheckItemProps {
+  type: "checkbox" | "radio";
+  name: string;
   label: string;
   checked: boolean;
   onChange: () => void;
-}) {
-  return (
-    <label className="flex items-center gap-2.5 cursor-pointer group">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={onChange}
-        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-      />
-      <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">
-        {label}
-      </span>
-    </label>
-  );
 }
 
-function RadioItem({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-}) {
+function CheckItem({ type, name, label, checked, onChange }: CheckItemProps) {
   return (
-    <label className="flex items-center gap-2.5 cursor-pointer group">
+    <label
+      className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-2 py-1.5 transition-colors ${
+        checked ? "bg-[#F5FBE8]" : "hover:bg-bg"
+      }`}
+    >
       <input
-        type="radio"
+        type={type}
+        name={name}
         checked={checked}
         onChange={onChange}
-        className="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+        className="h-3.5 w-3.5 accent-teal cursor-pointer shrink-0"
       />
-      <span className="text-sm text-gray-700 group-hover:text-gray-900 transition-colors">
+      <span
+        className={`text-sm leading-tight transition-colors ${
+          checked ? "text-teal font-semibold" : "text-muted"
+        }`}
+      >
         {label}
       </span>
     </label>

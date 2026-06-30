@@ -83,39 +83,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   if (programs.length === 0) {
     return NextResponse.json<SearchErrorResponse>(
       {
-        error: "No programs found in the catalog. Run npm run seed first.",
+        error: "No programs are available right now. Please try again later.",
         code: "DB_ERROR",
       },
       { status: 503 }
     );
   }
 
-  let matches;
+  let result;
   try {
-    matches = await findMatchingPrograms(query, programs);
+    result = await findMatchingPrograms(query, programs);
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Unknown AI error";
+    console.error("AI matching failed:", err);
 
-    // Surface AI errors distinctly so the client can show a tailored state
     return NextResponse.json<SearchErrorResponse>(
       {
-        error: `AI matching failed: ${message}`,
+        error: "AI matching failed. Please try again in a moment.",
         code: "AI_ERROR",
       },
       { status: 502 }
     );
   }
 
-  if (matches.length === 0) {
-    return NextResponse.json<SearchResponse>(
-      { matches: [], totalMatches: 0 },
-      { status: 200 }
-    );
-  }
-
   return NextResponse.json<SearchResponse>(
-    { matches, totalMatches: matches.length },
+    {
+      matches: result.matches,
+      totalMatches: result.matches.length,
+      noMatchReason: result.noMatchReason,
+      noMatchMessage: result.noMatchMessage,
+    },
     { status: 200 }
   );
 }
