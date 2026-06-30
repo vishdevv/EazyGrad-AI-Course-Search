@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/db";
+import { ProgramModel } from "@/models/Program";
+import { findMatchingPrograms } from "@/lib/matcher";
+import type { SearchResponse, SearchErrorResponse, Program } from "@/types";
+
+const MIN_QUERY_LENGTH = 5;
+const MAX_QUERY_LENGTH = 500;
+
+export async function POST(req: NextRequest): Promise<NextResponse> {
+  let query: string;
+
+  try {
+    const body: unknown = await req.json();
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      typeof (body as Record<string, unknown>).query !== "string"
+    ) {
+      return NextResponse.json<SearchErrorResponse>(
+        { error: "Request body must be { query: string }.", code: "EMPTY_QUERY" },
+        { status: 400 }
+      );
+    }
+    query = ((body as Record<string, unknown>).query as string).trim();
+  } catch {
+    return NextResponse.json<SearchErrorResponse>(
+      { error: "Invalid JSON in request body.", code: "EMPTY_QUERY" },
+      { status: 400 }
+    );
+  }
+
+  if (query.length < MIN_QUERY_LENGTH) {
+    return NextResponse.json<SearchErrorResponse>(
+      {
+        error: `Query is too short. Please describe your background or goals in at least ${MIN_QUERY_LENGTH} characters.`,
+        code: "EMPTY_QUERY",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (query.length > MAX_QUERY_LENGTH) {
+    return NextResponse.json<SearchErrorResponse>(
+      {
+        error: `Query is too long. Please keep it under ${MAX_QUERY_LENGTH} characters.`,
+        code: "EMPTY_QUERY",
+      },
+      { status: 400 }
+    );
+  }
+
+  try {
+    await connectDB();
+  } catch {
+    return NextResponse.json<SearchErrorResponse>(
+      {
+        error: "Unable to reach the database. Please try again in a moment.",
+        code: "DB_ERROR",
+      },
+      { status: 503 }
+    );
+  }
+
+  let programs: Program[];
+  try {
+    const docs = await ProgramModel.find({}).lean();
+    // toJSON transform doesn't run on .lean() — serialise _id manually
+    programs = docs.map((doc) => ({
+      ...doc,
+      _id: doc._id.toString(),
+    })) as Program[];
+  } catch {
+    return NextResponse.json<SearchErrorResponse>(
+      {
+        error: "Failed to load program catalog. Please try again.",
+        code: "DB_ERROR",
+      },
+      { status: 503 }
+    );
+  }
+
+  if (programs.length === 0) {
+    return NextResponse.json<SearchErrorResponse>(
+      {
+        error: "No programs found in the catalog. Run npm run seed first.",
+        code: "DB_ERROR",
+      },
+      { status: 503 }
+    );
+  }
+
+  let matches;
+  try {
+    matches = await findMatchingPrograms(query, programs);
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Unknown AI error";
+
+    // Surface AI errors distinctly so the client can show a tailored state
+    return NextResponse.json<SearchErrorResponse>(
+      {
+        error: `AI matching failed: ${message}`,
+        code: "AI_ERROR",
+      },
+      { status: 502 }
+    );
+  }
+
+  if (matches.length === 0) {
+    return NextResponse.json<SearchResponse>(
+      { matches: [], totalMatches: 0 },
+      { status: 200 }
+    );
+  }
+
+  return NextResponse.json<SearchResponse>(
+    { matches, totalMatches: matches.length },
+    { status: 200 }
+  );
+}
