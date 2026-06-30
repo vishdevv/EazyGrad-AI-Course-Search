@@ -1,15 +1,22 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Program, MatchResult, AISearchResponse, AIMatchItem } from "@/types";
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+// Client is created lazily on first request so that Next.js build-time
+// module evaluation doesn't throw when env vars aren't present yet.
+let _client: Anthropic | null = null;
 
-if (!ANTHROPIC_API_KEY) {
-  throw new Error(
-    "ANTHROPIC_API_KEY environment variable is not set. Add it to .env.local."
-  );
+function getClient(): Anthropic {
+  if (!_client) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "ANTHROPIC_API_KEY environment variable is not set. Add it to .env.local."
+      );
+    }
+    _client = new Anthropic({ apiKey });
+  }
+  return _client;
 }
-
-const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 /**
  * Builds the system prompt that instructs the model on its role and
@@ -112,7 +119,7 @@ export async function findMatchingPrograms(
 ): Promise<MatchResult[]> {
   const systemPrompt = buildSystemPrompt(programs);
 
-  const message = await client.messages.create({
+  const message = await getClient().messages.create({
     model: "claude-sonnet-4-5",
     max_tokens: 1024,
     system: systemPrompt,

@@ -1,13 +1,5 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error(
-    "MONGODB_URI environment variable is not set. Add it to .env.local."
-  );
-}
-
 /**
  * Mongoose connection is cached on the global object so that hot-reload
  * in Next.js dev mode doesn't open a new connection on every request.
@@ -27,12 +19,19 @@ if (!global._mongooseCache) {
 const cache = global._mongooseCache;
 
 export async function connectDB(): Promise<typeof mongoose> {
+  // Guard here (not at module level) so Next.js build-time evaluation
+  // doesn't throw when env vars haven't been injected yet.
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error(
+      "MONGODB_URI environment variable is not set. Add it to .env.local."
+    );
+  }
+
   if (cache.conn) return cache.conn;
 
   if (!cache.promise) {
-    cache.promise = mongoose.connect(MONGODB_URI as string, {
-      bufferCommands: false,
-    });
+    cache.promise = mongoose.connect(uri, { bufferCommands: false });
   }
 
   cache.conn = await cache.promise;
