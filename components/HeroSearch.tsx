@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, type FormEvent, type KeyboardEvent } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { SearchResponse, SearchErrorResponse } from "@/types";
 
 interface HeroSearchProps {
@@ -25,12 +25,15 @@ export default function HeroSearch({
   isLoading,
 }: HeroSearchProps) {
   const [query, setQuery] = useState("");
-  const [placeholderIndex] = useState(
-    () => Math.floor(Math.random() * PLACEHOLDER_CYCLE.length)
-  );
+  // Start at 0 (matches SSR), randomise after mount to avoid hydration mismatch
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  async function handleSubmit(e?: FormEvent) {
+  useEffect(() => {
+    setPlaceholderIndex(Math.floor(Math.random() * PLACEHOLDER_CYCLE.length));
+  }, []);
+
+  async function handleSubmit(e?: { preventDefault(): void }) {
     e?.preventDefault();
 
     const trimmed = query.trim();
@@ -61,7 +64,7 @@ export default function HeroSearch({
     }
   }
 
-  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
