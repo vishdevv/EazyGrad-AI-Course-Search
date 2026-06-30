@@ -6,7 +6,7 @@ A homepage prototype for EazyGrad, an EdTech platform that helps students find t
 
 ## Running locally
 
-**Prerequisites:** Node.js 20+, a MongoDB instance (local or Atlas), an Anthropic API key.
+**Prerequisites:** Node.js 20+, a MongoDB instance (local or Atlas), a Groq API key.
 
 ```bash
 # 1. Clone and install
@@ -16,7 +16,7 @@ npm install
 
 # 2. Set environment variables
 cp .env.example .env.local
-# Fill in MONGODB_URI and ANTHROPIC_API_KEY in .env.local
+# Fill in MONGODB_URI and GROQ_API_KEY in .env.local
 
 # 3. Seed the program catalog (run once, or whenever you reset the DB)
 npm run seed
@@ -34,9 +34,11 @@ Open [http://localhost:3000](http://localhost:3000).
 | Variable | Description |
 |---|---|
 | `MONGODB_URI` | MongoDB connection string. Atlas example: `mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/eazygrd` |
-| `ANTHROPIC_API_KEY` | Anthropic API key from [console.anthropic.com](https://console.anthropic.com) |
+| `GROQ_API_KEY` | Groq API key from [console.groq.com](https://console.groq.com) |
 
 Never commit `.env.local`. Only `.env.example` (with empty values) is tracked in git.
+
+> **MongoDB Atlas note:** Add `0.0.0.0/0` to your Atlas Network Access list so serverless deployment environments (Vercel, etc.) can connect. Atlas blocks all IPs by default.
 
 ---
 
@@ -44,28 +46,31 @@ Never commit `.env.local`. Only `.env.example` (with empty values) is tracked in
 
 ```
 app/
-  page.tsx              — Client component. Owns all page state (idle / loading / results / error).
-  api/search/route.ts   — POST endpoint. Validates query → fetches programs → calls AI matcher → returns JSON.
-  layout.tsx            — Root layout with font setup and metadata.
+  page.tsx                — Client component. Owns all page state (idle / loading / results / error).
+  explore/page.tsx        — Full catalog browse page with filtering; no AI involved.
+  api/search/route.ts     — POST endpoint. Validates query → fetches programs → calls AI matcher → returns JSON.
+  api/programs/route.ts   — GET endpoint. Returns the full program catalog for the explore page.
+  layout.tsx              — Root layout with font setup and metadata.
 
 components/
-  HeroSearch.tsx        — Full-width textarea search input with auto-resize and loading state.
-  ProgramCard.tsx       — Result card: program details + AI reasoning callout.
-  FilterSidebar.tsx     — Client-side filters (degree type, fee, duration, provider).
-  SearchStates.tsx      — Loading, error, empty-search, and empty-filter states.
+  HeroSearch.tsx          — Full-width textarea search input with auto-resize and loading state.
+  ProgramCard.tsx         — Result card: program details + AI reasoning callout (or description in browse mode).
+  FilterSidebar.tsx       — Client-side filters (degree type, fee, duration, provider).
+  SearchStates.tsx        — Loading, error, empty-search, and empty-filter states.
 
 lib/
-  db.ts                 — Mongoose connection singleton (cached on global to survive Next.js hot-reload).
-  matcher.ts            — Prompt construction, Claude API call, JSON parsing, hallucination guard.
+  db.ts                   — Mongoose connection singleton (cached on global to survive Next.js hot-reload).
+  matcher.ts              — Prompt construction, Groq API call, JSON parsing, hallucination guard.
+  filters.ts              — Shared filter predicate used by both the search and explore pages.
 
 models/
-  Program.ts            — Mongoose schema with DegreeType enum enforcement and toJSON serialisation.
+  Program.ts              — Mongoose schema with DegreeType enum enforcement and toJSON serialisation.
 
 types/
-  index.ts              — All shared TypeScript interfaces and filter constants.
+  index.ts                — All shared TypeScript interfaces and filter constants.
 
 scripts/
-  seed.ts               — Drops and re-inserts 19 representative programs. Run with npm run seed.
+  seed.ts                 — Drops and re-inserts 19 representative programs. Run with npm run seed.
 ```
 
 ### Why direct LLM context instead of vector search
@@ -73,7 +78,7 @@ scripts/
 With only 15–20 programs, passing the full catalog directly in the system prompt is the correct architectural choice:
 
 - **No infrastructure overhead.** Vector search requires an embedding model, a vector database (Pinecone, Weaviate, etc.), an embedding pipeline, and ongoing sync when data changes. For 19 records, this is pure complexity without benefit.
-- **The LLM already does semantic matching.** Sending the full catalog (≈2,000 tokens) to Claude and asking it to reason over all entries is cheaper, faster, and more accurate than retrieving approximate nearest-neighbours and then re-ranking.
+- **The LLM already does semantic matching.** Sending the full catalog (≈2,000 tokens) in the system prompt and asking it to reason over all entries is cheaper, faster, and more accurate than retrieving approximate nearest-neighbours and then re-ranking.
 - **Full context = better reasoning.** The model can weigh all 19 programs simultaneously and say "these 4 are a strong fit, these 2 are marginal." Vector retrieval would silently drop programs that are good fits but don't share embedding-space proximity with the query phrasing.
 
 The threshold where vector search becomes worthwhile is roughly 500–1,000+ programs, where the catalog no longer fits comfortably in a single prompt.
