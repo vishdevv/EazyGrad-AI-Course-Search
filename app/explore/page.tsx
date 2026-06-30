@@ -53,13 +53,15 @@ export default function ExplorePage() {
       {/* Header */}
       <header className="shrink-0 bg-surface border-b border-border sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3">
-          <Image
-            src="/eazygrad-logo.png"
-            alt="EazyGrad"
-            width={110}
-            height={23}
-            className="h-5 sm:h-6 w-auto shrink-0"
-          />
+          <Link href="/" className="shrink-0">
+            <Image
+              src="/eazygrad-logo.png"
+              alt="EazyGrad"
+              width={110}
+              height={23}
+              className="h-5 sm:h-6 w-auto"
+            />
+          </Link>
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 h-8 px-4 rounded-lg bg-lime text-ink text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"

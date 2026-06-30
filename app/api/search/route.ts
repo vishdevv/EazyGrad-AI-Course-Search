@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { RateLimitError } from "groq-sdk";
 import { connectDB } from "@/lib/db";
 import { ProgramModel } from "@/models/Program";
 import { findMatchingPrograms } from "@/lib/matcher";
 import type { SearchResponse, SearchErrorResponse, Program } from "@/types";
+
+function formatRetryAfter(headers: Headers | undefined): string | null {
+  const raw = headers?.get("retry-after");
+  if (!raw) return null;
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  const minutes = Math.ceil(seconds / 60);
+  return minutes <= 1 ? "about a minute" : `about ${minutes} minutes`;
+}
 
 const MIN_QUERY_LENGTH = 5;
 const MAX_QUERY_LENGTH = 500;
@@ -95,6 +105,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     result = await findMatchingPrograms(query, programs);
   } catch (err) {
     console.error("AI matching failed:", err);
+
+    if (err instanceof RateLimitError) {
+      const wait = formatRetryAfter(err.headers);
+      return NextResponse.json<SearchErrorResponse>(
+        {
+          error: wait
+            ? `Our AI matching service has hit its usage limit for now. Please try again in ${wait}.`
+            : "Our AI matching service has hit its usage limit for now. Please try again shortly.",
+          code: "RATE_LIMIT",
+        },
+        { status: 429 }
+      );
+    }
 
     return NextResponse.json<SearchErrorResponse>(
       {

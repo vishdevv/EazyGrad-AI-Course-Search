@@ -51,7 +51,7 @@ export interface SearchResponse {
 
 export interface SearchErrorResponse {
   error: string;
-  code: "EMPTY_QUERY" | "NO_MATCHES" | "AI_ERROR" | "DB_ERROR";
+  code: "EMPTY_QUERY" | "NO_MATCHES" | "AI_ERROR" | "RATE_LIMIT" | "DB_ERROR";
 }
 
 // ─── Filters (client-side) ───────────────────────────────────────────────────

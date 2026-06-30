@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import HeroSearch from "@/components/HeroSearch";
@@ -53,6 +53,14 @@ export default function HomePage() {
     setPageState({ stage: "idle" });
   }, []);
 
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (pageState.stage === "error") {
+      errorRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [pageState.stage]);
+
   const isLoading = pageState.stage === "loading";
 
   const allMatches =
@@ -74,13 +82,15 @@ export default function HomePage() {
         {/* Thin header: logo + compact search */}
         <header className="shrink-0 border-b border-border bg-surface sticky top-0 z-10">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 sm:gap-5">
-            <Image
-              src="/eazygrad-logo.png"
-              alt="EazyGrad"
-              width={110}
-              height={23}
-              className="shrink-0 h-5 sm:h-6 w-auto"
-            />
+            <Link href="/" onClick={handleRetry} className="shrink-0">
+              <Image
+                src="/eazygrad-logo.png"
+                alt="EazyGrad"
+                width={110}
+                height={23}
+                className="h-5 sm:h-6 w-auto"
+              />
+            </Link>
             <div className="flex-1 min-w-0">
               <HeroSearch compact {...searchProps} />
             </div>
@@ -97,7 +107,7 @@ export default function HomePage() {
           {pageState.stage === "loading" && <LoadingState />}
 
           {pageState.stage === "error" && (
-            <div className="max-w-5xl mx-auto px-6 sm:px-8">
+            <div ref={errorRef} className="max-w-5xl mx-auto px-6 sm:px-8">
               <ErrorState message={pageState.message} onRetry={handleRetry} />
             </div>
           )}
@@ -159,7 +169,7 @@ export default function HomePage() {
         {pageState.stage === "loading" && <LoadingState />}
 
         {pageState.stage === "error" && (
-          <div className="max-w-xl mx-auto w-full px-4 pb-16">
+          <div ref={errorRef} className="max-w-xl mx-auto w-full px-4 pb-16">
             <ErrorState message={pageState.message} onRetry={handleRetry} />
           </div>
         )}

@@ -102,14 +102,16 @@ export default function HeroSearch({
       <div className="w-full max-w-xl">
         {/* Logo */}
         <div className="flex justify-center mb-10">
-          <Image
-            src="/eazygrad-logo.png"
-            alt="EazyGrad"
-            width={140}
-            height={29}
-            priority
-            className="h-7 w-auto"
-          />
+          <Link href="/">
+            <Image
+              src="/eazygrad-logo.png"
+              alt="EazyGrad"
+              width={140}
+              height={29}
+              priority
+              className="h-7 w-auto"
+            />
+          </Link>
         </div>
 
         {/* Headline + brushstroke */}
@@ -153,8 +155,8 @@ export default function HeroSearch({
               aria-label="Describe your background and goals"
               className="w-full resize-none rounded-xl bg-transparent px-5 pt-5 pb-16 text-[15px] leading-relaxed text-ink placeholder:text-muted focus:outline-none disabled:opacity-60"
             />
-            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-4 py-3.5">
-              <span className="font-mono text-[11px] text-muted">
+            <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between gap-2 px-3 sm:px-4 py-3 sm:py-3.5">
+              <span className="hidden sm:inline font-mono text-[11px] text-muted">
                 {query.trim().length > 0
                   ? `${query.trim().length} chars · Shift+Enter for new line`
                   : "Shift+Enter for new line · Enter to search"}
@@ -162,7 +164,7 @@ export default function HeroSearch({
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="h-8 px-4 rounded-lg bg-lime text-ink text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
+                className="ml-auto shrink-0 h-8 px-4 rounded-lg bg-lime text-ink text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
               >
                 {isLoading ? "Matching…" : "Find programs →"}
               </button>
